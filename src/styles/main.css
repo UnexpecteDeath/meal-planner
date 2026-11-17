@@ -1,0 +1,48 @@
+@import './reset.css';
+
+@font-face {
+  font-family: 'Inter';
+  src: url('../assets/fonts/Inter/Inter-VariableFont_opsz,wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('../assets/fonts/Inter/Inter-Italic-VariableFont_opsz,wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root {
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font__normal: 600;
+  --font__bold: 700;
+  --font__extra-bold: 800;
+  --font__small: 400 0.875rem;
+  --color__primary: #121212;
+  --color__secondary: #FFFFFF;
+  --color__muted: #787878;
+  --color__danger: #D92D21;
+  --bg__primary: #F5F5F2;
+  --bg__secondary: #121212;
+  --accent: #D6FF40;
+  --accent__muted: #F4FFD1;
+  --bg__skeleton: #E8E8E6;
+  --danger: #FFF4F2;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  padding: 0;
+  margin: 0;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
