@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { supabase } from '@/lib/supabase'
+import Button from '@/shared/Button.vue'
 import EditAvatar from '../components/EditAvatar.vue'
 import EditEmail from '../components/EditEmail.vue'
 import EditName from '../components/EditName.vue'
@@ -17,10 +18,13 @@ type Account = {
   pendingEmail: string
 }
 
+const router = useRouter()
 const account = ref<Account | null>(null)
 const hasProfile = ref(false)
 const isLoading = ref(true)
 const loadError = ref('')
+const isSigningOut = ref(false)
+const signOutError = ref('')
 
 onMounted(async () => {
   try {
@@ -48,6 +52,24 @@ onMounted(async () => {
     isLoading.value = false
   }
 })
+
+async function signOut() {
+  if (isSigningOut.value) return
+
+  isSigningOut.value = true
+  signOutError.value = ''
+
+  try {
+    const { error } = await supabase.auth.signOut({ scope: 'local' })
+    if (error) throw error
+
+    await router.replace({ name: 'sign-in' })
+  } catch (error) {
+    signOutError.value = getErrorMessage(error, 'Could not sign out. Please try again.')
+  } finally {
+    isSigningOut.value = false
+  }
+}
 </script>
 
 <template>
@@ -74,6 +96,13 @@ onMounted(async () => {
         :initial-pending-email="account.pendingEmail"
       />
       <EditPassword />
+    </div>
+
+    <div class="sign-out">
+      <Button class="sign-out-button" variant="danger" :disabled="isSigningOut" @click="signOut">
+        {{ isSigningOut ? 'SIGNING OUT…' : 'SIGN OUT' }}
+      </Button>
+      <p v-if="signOutError" class="error" role="alert">{{ signOutError }}</p>
     </div>
   </main>
 </template>
@@ -163,6 +192,14 @@ onMounted(async () => {
   background-color: var(--accent__muted);
 }
 
+.sign-out {
+  display: grid;
+  gap: 12px;
+  padding-top: 28px;
+  border-top: 1px solid var(--bg__skeleton);
+}
+
+.sign-out-button,
 .sections :deep(.section .action) {
   justify-self: start;
   min-height: 48px;
@@ -182,6 +219,7 @@ onMounted(async () => {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .sign-out-button,
   .sections :deep(.section .action) {
     width: 100%;
   }

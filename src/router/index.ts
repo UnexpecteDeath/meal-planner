@@ -64,7 +64,7 @@ export function createAppRouter() {
     }
 
     if (to.meta.guestOnly && isAuthenticated) {
-      return { name: 'home', replace: true }
+      return { name: 'generator', replace: true }
     }
   })
 

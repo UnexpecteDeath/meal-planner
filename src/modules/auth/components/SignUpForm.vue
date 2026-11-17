@@ -72,7 +72,7 @@ const onSubmit = async () => {
       return
     }
 
-    await router.replace({ name: 'home' })
+    await router.replace({ name: 'generator' })
   } catch (error) {
     SignUpError.value = error instanceof Error ? error.message : 'Authentication error'
   } finally {
