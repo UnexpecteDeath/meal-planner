@@ -1,4 +1,41 @@
 import { supabase } from '@/lib/supabase.ts'
+import { FunctionsHttpError } from '@supabase/supabase-js'
+
+export const DAILY_GENERATION_LIMIT = 3
+export const GENERATION_LIMIT_MESSAGE =
+  'You have used all 3 generations for today. Try again tomorrow. The limit resets at midnight Moscow time.'
+
+export function getGenerationDate(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+}
+
+export class GenerationLimitError extends Error {
+  constructor(public readonly generationDate: string) {
+    super(GENERATION_LIMIT_MESSAGE)
+    this.name = 'GenerationLimitError'
+  }
+}
+
+export async function getRemainingGenerations(generationDate: string) {
+  const { data, error } = await supabase
+    .from('meal_generation_limits')
+    .select('generation_count')
+    .eq('generation_date', generationDate)
+    .maybeSingle<{ generation_count: number }>()
+
+  if (error) {
+    throw new Error('Could not check your daily generation limit. Please try again.', {
+      cause: error,
+    })
+  }
+
+  return Math.max(0, DAILY_GENERATION_LIMIT - (data?.generation_count ?? 0))
+}
 
 export type Difficulty = 'easy' | 'medium' | 'hard'
 type MealType = 'breakfast' | 'lunch' | 'dinner'
@@ -51,12 +88,20 @@ export type FilterChange =
 export async function generateDayPlan(
   payload: GeneratePlanPayload,
 ): Promise<GenerateDayPlanResponse> {
+  const generationDate = getGenerationDate()
+  const remaining = await getRemainingGenerations(generationDate)
+  if (remaining === 0) throw new GenerationLimitError(generationDate)
+
   const { data, error } = await supabase.functions.invoke<GenerateDayPlanResponse>(
     'generate-day-plan',
     { body: payload },
   )
 
   if (error) {
+    if (error instanceof FunctionsHttpError && error.context.status === 429) {
+      throw new GenerationLimitError(generationDate)
+    }
+
     throw error
   }
 

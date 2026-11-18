@@ -1,6 +1,15 @@
-import { useMutation, useQueryClient } from '@tanstack/vue-query'
-import { generateDayPlan } from './index'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
+import type { Ref } from 'vue'
+import { generateDayPlan, getRemainingGenerations } from './index'
 
+export function useGenerationLimitQuery(generationDate: Ref<string>) {
+  return useQuery({
+    queryKey: ['meal-generation-limit', generationDate],
+    queryFn: () => getRemainingGenerations(generationDate.value),
+    gcTime: 0,
+    retry: false,
+  })
+}
 
 export function useGenerateDayPlanMutation() {
   const queryClient = useQueryClient()
@@ -12,6 +21,10 @@ export function useGenerateDayPlanMutation() {
       queryClient.invalidateQueries({
         queryKey: ['meal-history'],
       })
+    },
+
+    onSettled: () => {
+      return queryClient.invalidateQueries({ queryKey: ['meal-generation-limit'] })
     },
   })
 }

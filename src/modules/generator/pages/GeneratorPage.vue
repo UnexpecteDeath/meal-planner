@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useIntervalFn, useNow } from '@vueuse/core'
 import { RotateCw } from '@lucide/vue'
 import { Button } from '@/shared'
 import MealCard from '../components/MealCard.vue'
 import Preferences from '../components/Preferences.vue'
-import { useGenerateDayPlanMutation } from '../api/queries'
+import { useGenerateDayPlanMutation, useGenerationLimitQuery } from '../api/queries'
+import {
+  DAILY_GENERATION_LIMIT,
+  GENERATION_LIMIT_MESSAGE,
+  GenerationLimitError,
+  getGenerationDate,
+} from '../api'
 import type { FilterChange, Filters, GenerateDayPlanResponse } from '../api'
 
 const initialFilters: Filters = {
@@ -17,9 +24,39 @@ const initialFilters: Filters = {
 const { mutate, isPending, error } = useGenerateDayPlanMutation()
 const filters = ref<Filters>(initialFilters)
 const result = ref<GenerateDayPlanResponse | null>(null)
-const today = ref(new Date())
+const today = useNow({ scheduler: (update) => useIntervalFn(update, 1000) })
+const generationDate = computed(() => getGenerationDate(today.value))
+const {
+  data: remaining,
+  isPending: isLimitPending,
+  isFetching: isLimitFetching,
+  error: limitError,
+  refetch: refetchLimit,
+} = useGenerationLimitQuery(generationDate)
+const isLimitReached = computed(
+  () =>
+    remaining.value === 0 ||
+    (error.value instanceof GenerationLimitError &&
+      error.value.generationDate === generationDate.value),
+)
+const isGenerationDisabled = computed(
+  () =>
+    isPending.value ||
+    isLimitPending.value ||
+    isLimitFetching.value ||
+    Boolean(limitError.value) ||
+    isLimitReached.value,
+)
+const generationMessage = computed(() => {
+  if (isLimitReached.value) return GENERATION_LIMIT_MESSAGE
+  if (limitError.value) return limitError.value.message
+  if (error.value instanceof GenerationLimitError) return ''
+  return error.value?.message ?? ''
+})
 const dateLabel = computed(() =>
-  new Intl.DateTimeFormat('en-GB', { dateStyle: 'full' }).format(today.value).replace(',', ' /'),
+  new Intl.DateTimeFormat('en-GB', { dateStyle: 'full', timeZone: 'Europe/Moscow' })
+    .format(today.value)
+    .replace(',', ' /'),
 )
 const meals = computed(() => {
   const plan = result.value
@@ -27,16 +64,11 @@ const meals = computed(() => {
 })
 
 function handleGenerate() {
-  if (isPending.value) return
-
-  const now = new Date()
-  today.value = now
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
+  if (isGenerationDisabled.value) return
 
   mutate(
     {
-      planDate: `${now.getFullYear()}-${month}-${day}`,
+      planDate: generationDate.value,
       allergies: filters.value.allergies,
       wantedIngredients: filters.value.whatIWantToEat,
       dislikedIngredients: filters.value.whatIDontWantToEat,
@@ -77,8 +109,21 @@ function handleChangeFilter(...[key, value]: FilterChange) {
       :handleChangeFilter="handleChangeFilter"
       :filters="filters"
       :is-generating="isPending"
+      :is-generation-disabled="isGenerationDisabled"
     />
-    <p v-if="error" class="plan-error" role="alert">{{ error.message }}</p>
+    <p v-if="remaining !== undefined && !limitError" class="limit-status" role="status">
+      Daily generations remaining: {{ remaining }} / {{ DAILY_GENERATION_LIMIT }}
+    </p>
+    <p v-if="generationMessage" class="plan-error" role="alert">{{ generationMessage }}</p>
+    <Button
+      v-if="limitError"
+      class="retry-limit"
+      variant="outline"
+      :disabled="isLimitFetching"
+      @click="refetchLimit()"
+    >
+      {{ isLimitFetching ? 'CHECKING LIMIT…' : 'TRY AGAIN' }}
+    </Button>
 
     <section v-if="result" class="plan" aria-labelledby="plan-title" :aria-busy="isPending">
       <div class="plan-header">
@@ -86,7 +131,7 @@ function handleChangeFilter(...[key, value]: FilterChange) {
         <Button
           class="regenerate-all"
           variant="outline"
-          :disabled="isPending"
+          :disabled="isGenerationDisabled"
           @click="handleGenerate"
         >
           {{ isPending ? 'REGENERATING…' : 'REGENERATE ALL' }}
@@ -128,11 +173,24 @@ function handleChangeFilter(...[key, value]: FilterChange) {
   max-width: 600px;
 }
 
+.limit-status,
 .plan-error {
   margin-top: 12px;
-  color: var(--color__danger);
   font-size: 14px;
+  line-height: 1.4;
   overflow-wrap: anywhere;
+}
+
+.limit-status {
+  color: var(--color__muted);
+}
+
+.plan-error {
+  color: var(--color__danger);
+}
+
+.retry-limit {
+  margin-top: 12px;
 }
 
 .plan {

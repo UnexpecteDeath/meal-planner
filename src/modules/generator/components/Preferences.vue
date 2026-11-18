@@ -78,9 +78,11 @@ type Props = {
   handleChangeFilter: (...change: FilterChange) => void
   filters: Filters
   isGenerating: boolean
+  isGenerationDisabled: boolean
 }
 
-const { handleGenerate, handleChangeFilter, filters, isGenerating } = defineProps<Props>()
+const { handleGenerate, handleChangeFilter, filters, isGenerating, isGenerationDisabled } =
+  defineProps<Props>()
 
 const groupId = useId()
 const expandedGroups = ref<ListFilterKey[]>([])
@@ -159,7 +161,7 @@ function selectPreference(preference: Preference, item: string) {
     </div>
     <Button
       class="generate-button"
-      :disabled="isGenerating"
+      :disabled="isGenerating || isGenerationDisabled"
       :aria-busy="isGenerating"
       @click="handleGenerate"
     >
